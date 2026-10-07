@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0d1020" />
+    <meta name="description" content="Plinko demo game. Play money only." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='12' fill='%23ffd25e'/%3E%3C/svg%3E" />
+    <title>Plinko</title>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand" aria-label="Plinko">
+          <span class="brand__dot" aria-hidden="true"></span>
+          <span class="brand__name">PLINKO</span>
+          <span class="brand__tag">Demo</span>
+        </div>
+        <div class="wallet">
+          <span class="wallet__label">Balance</span>
+          <output class="wallet__value" id="balance" aria-live="polite">$1,000.00</output>
+        </div>
+        <div class="topbar__actions">
+          <button class="icon-btn" id="reset" type="button" title="Reset balance" aria-label="Reset balance">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.34-5.66M4 4v4h4" /></svg>
+          </button>
+          <button class="icon-btn" id="sound" type="button" aria-pressed="true" aria-label="Sound">
+            <svg class="icon-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4zM16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" /></svg>
+            <svg class="icon-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4zM17 9l5 6M22 9l-5 6" /></svg>
+          </button>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="panel controls" aria-label="Bet controls">
+          <div class="field">
+            <div class="field__head">
+              <label for="bet-input">Bet amount</label>
+              <span class="field__hint" id="bet-limits"></span>
+            </div>
+            <div class="bet">
+              <button class="step-btn" id="bet-minus" type="button" aria-label="Decrease bet">−</button>
+              <div class="bet__input">
+                <span aria-hidden="true">$</span>
+                <input id="bet-input" inputmode="decimal" autocomplete="off" spellcheck="false" aria-describedby="bet-limits" />
+              </div>
+              <button class="step-btn" id="bet-plus" type="button" aria-label="Increase bet">+</button>
+            </div>
+            <div class="chips">
+              <button class="chip" id="bet-half" type="button">½</button>
+              <button class="chip" id="bet-double" type="button">2×</button>
+              <button class="chip" id="bet-min" type="button">Min</button>
+              <button class="chip" id="bet-max" type="button">Max</button>
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="field__head"><span id="risk-label">Risk</span></div>
+            <div class="segmented" role="radiogroup" aria-labelledby="risk-label" id="risk"></div>
+          </div>
+
+          <div class="field">
+            <div class="field__head">
+              <label for="rows">Rows</label>
+              <output class="field__value" id="rows-value" for="rows"></output>
+            </div>
+            <input class="range" id="rows" type="range" step="1" />
+          </div>
+
+          <button class="drop-btn" id="drop" type="button">
+            <span class="drop-btn__label">Drop</span>
+          </button>
+          <p class="message" id="message" role="status" aria-live="polite"></p>
+        </section>
+
+        <section class="stage-wrap" aria-label="Game board">
+          <div class="stage" id="board">
+            <div class="win-pop" id="win-pop" aria-hidden="true"></div>
+          </div>
+        </section>
+
+        <section class="panel history" aria-label="Recent games">
+          <div class="history__head">
+            <h2>History</h2>
+            <span class="history__count" id="history-count"></span>
+          </div>
+          <ol class="history__list" id="history"></ol>
+          <p class="history__empty" id="history-empty">No rounds yet. Drop a ball to start.</p>
+        </section>
+      </main>
+      <footer class="footnote">Demo only. Play money, no real wagering.</footer>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
