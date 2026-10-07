@@ -1,7 +1,5 @@
-/** A function returning a pseudo-random float in [0, 1). */
 export type RandomFn = () => number;
 
-/** Small, fast, seedable PRNG (mulberry32). Deterministic for a given seed. */
 export function createSeededRandom(seed: number): RandomFn {
   let state = seed >>> 0;
   return () => {
@@ -13,7 +11,6 @@ export function createSeededRandom(seed: number): RandomFn {
   };
 }
 
-/** Stable 32-bit hash of a string (FNV-1a), used to derive seeds from ids. */
 export function hashString(value: string): number {
   let hash = 0x811c9dc5;
   for (let i = 0; i < value.length; i++) {

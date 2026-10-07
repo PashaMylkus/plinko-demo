@@ -1,7 +1,3 @@
-/**
- * Money helpers. Amounts are kept as integer cents internally to avoid
- * floating point drift; the API boundary uses decimal dollars.
- */
 export type Cents = number;
 
 export function toCents(dollars: number): Cents {

@@ -16,10 +16,6 @@ export class ApiError extends Error {
   }
 }
 
-/**
- * Never trust a payload blindly: make sure the server answered the round we
- * asked for with a slot that exists on this board and a consistent payout.
- */
 export function validatePlayResult(request: PlayRequest, response: PlayResponse): PlaySuccessResponse {
   if (!response.success) throw new ApiError(response.error.message);
   if (response.rows !== request.rows || response.risk !== request.risk) {

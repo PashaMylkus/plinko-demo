@@ -7,10 +7,6 @@ const PEG_LABEL = 'peg';
 const BALL_LABEL = 'ball';
 const SENSOR_LABEL = 'slot-sensor';
 
-/**
- * Hook that may apply forces to the ball before each physics substep. The
- * world itself knows nothing about outcomes; outcome steering plugs in here.
- */
 export interface BallForceController {
   beforeSubstep(ball: Matter.Body, substep: number, world: PlinkoWorld): void;
 }
@@ -18,7 +14,6 @@ export interface BallForceController {
 export interface SpawnOptions {
   readonly x: number;
   readonly vx: number;
-  /** Seed for the world's own deterministic jitter (anti-stuck nudges). */
   readonly seed: number;
 }
 
@@ -35,11 +30,6 @@ export interface WorldStepEvents {
   readonly landedSlot: number | null;
 }
 
-/**
- * Matter.js world for one board: static pegs, side rails, slot dividers,
- * slot sensors and a floor. Stepped manually with a fixed timestep so a drop
- * is fully deterministic for the same spawn and controller.
- */
 export class PlinkoWorld {
   readonly geometry: BoardGeometry;
   private readonly engine: Matter.Engine;
@@ -76,7 +66,6 @@ export class PlinkoWorld {
     return this.landedSlot;
   }
 
-  /** Downward force gravity exerts on the ball; controllers scale against it. */
   get ballWeight(): number {
     return this.ball ? this.ball.mass * PHYSICS.gravityY * PHYSICS.gravityScale : 0;
   }
@@ -117,7 +106,6 @@ export class PlinkoWorld {
     return { x: ball.position.x, y: ball.position.y, vx: v.x, vy: v.y, angle: ball.angle };
   }
 
-  /** Advances one rendered frame (several substeps). Stops once landed. */
   stepFrame(): WorldStepEvents {
     for (let i = 0; i < PHYSICS.substeps && this.landedSlot === null && this.ball; i++) {
       this.stepSubstep(this.ball);
@@ -141,16 +129,11 @@ export class PlinkoWorld {
     Matter.Engine.update(this.engine, SUBSTEP_MS);
     this.substep++;
 
-    // Backstop for the sensor: a ball below the line has landed regardless.
     if (this.landedSlot === null && ball.position.y >= this.geometry.sensorY + this.geometry.ballRadius) {
       this.landedSlot = slotIndexAt(this.geometry, ball.position.x);
     }
   }
 
-  /**
-   * A ball can (rarely) come to rest balanced on a peg or wedged against a
-   * rail. If it stays nearly still for a while, nudge it sideways.
-   */
   private preventStall(ball: Matter.Body): void {
     if (Matter.Body.getSpeed(ball) < PHYSICS.stuckSpeed) {
       this.slowSubsteps++;
@@ -204,7 +187,6 @@ export class PlinkoWorld {
 
     for (const wall of g.walls) bodies.push(createRail(wall));
 
-    // Dividers continue the last row of pegs down into the slot boxes.
     const dividerTop = g.lastRowY;
     const dividerHeight = g.floorY - dividerTop;
     for (let k = 0; k <= g.slots.length; k++) {

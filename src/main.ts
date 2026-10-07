@@ -11,7 +11,6 @@ import { byId } from './ui/dom';
 import { HistoryView } from './ui/HistoryView';
 import { WinPopup } from './ui/WinPopup';
 
-/** `?failRate=0.3` makes the mock server fail some rounds, to exercise error handling. */
 function readFailureRate(): number {
   const raw = new URLSearchParams(window.location.search).get('failRate');
   const rate = raw === null ? 0 : Number(raw);
@@ -50,11 +49,12 @@ async function bootstrap(): Promise<void> {
   game.state.changes.subscribe(({ to }) => {
     controls.refresh();
     resetButton.disabled = game.state.isBusy;
-    if (to === 'WAITING_FOR_RESULT') winPopup.hide();
+    if (to === 'PLAYING') winPopup.hide();
   });
   game.events.subscribe((event) => {
     if (event.type === 'settings') controls.render(event.settings);
     else if (event.type === 'message') controls.showMessage(event.text, event.tone);
+    else if (event.type === 'balls') controls.refresh();
     else winPopup.show(event.result);
   });
 
@@ -67,7 +67,6 @@ async function bootstrap(): Promise<void> {
     soundButton.setAttribute('aria-pressed', String(!sounds.muted));
     sounds.unlock();
   });
-  // Browsers only allow audio after a user gesture.
   window.addEventListener('pointerdown', () => {
     sounds.unlock();
   }, { once: false, passive: true });

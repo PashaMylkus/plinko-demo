@@ -16,8 +16,9 @@ const planner: PlannerPort = {
     Promise.resolve({ targetSlot, spawn: { x: 0, vx: 0, seed: 1 }, strength: 0, attempts: 1, verified: true }),
 };
 
-/** Board that "lands" the ball in the planned slot (or as told). */
-function fakeBoard(outcome?: (plan: DropPlan) => DropOutcome): BoardPort & { drops: DropPlan[] } {
+function fakeBoard(
+  outcome?: (plan: DropPlan) => DropOutcome | Promise<DropOutcome>,
+): BoardPort & { drops: DropPlan[] } {
   const drops: DropPlan[] = [];
   return {
     drops,
@@ -30,6 +31,26 @@ function fakeBoard(outcome?: (plan: DropPlan) => DropOutcome): BoardPort & { dro
     },
   };
 }
+
+function heldBoard() {
+  const landings: (() => void)[] = [];
+  const board = fakeBoard(
+    (plan) =>
+      new Promise<DropOutcome>((resolve) => {
+        landings.push(() => {
+          resolve({ slot: plan.targetSlot, timedOut: false });
+        });
+      }),
+  );
+  return {
+    board,
+    landAll: () => {
+      for (const land of landings.splice(0)) land();
+    },
+  };
+}
+
+const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 function setup(api: PlinkoApi, board = fakeBoard()) {
   const game = new GameController({ api, board, planner, sounds, config: GAME_CONFIG });
@@ -67,12 +88,55 @@ describe('GameController', () => {
     expect(game.wallet.balance).toBe(expected);
   });
 
-  it('ignores a second drop while a ball is in play', async () => {
-    const { game, board } = setup(mockApi());
-    const first = game.drop();
-    const second = game.drop();
-    await Promise.all([first, second]);
-    expect(board.drops).toHaveLength(1);
+  it('drops more balls while earlier ones are still in play', async () => {
+    const { board, landAll } = heldBoard();
+    const { game } = setup(mockApi(), board);
+    const rounds = [game.drop(), game.drop(), game.drop()];
+    expect(game.ballsInPlay).toBe(3);
+    expect(game.wallet.balance).toBe(100000 - 3 * 1000);
+    await flush();
+    expect(board.drops).toHaveLength(3);
+    expect(game.state.state).toBe(GameState.PLAYING);
+
+    landAll();
+    await Promise.all(rounds);
+    const won = game.history.entries.reduce((sum, record) => sum + record.winCents, 0);
+    expect(game.history.entries).toHaveLength(3);
+    expect(game.ballsInPlay).toBe(0);
+    expect(game.wallet.balance).toBe(100000 - 3 * 1000 + won);
+    expect(game.state.state).toBe(GameState.RESULT);
+  });
+
+  it('caps the number of balls in play', async () => {
+    const { board, landAll } = heldBoard();
+    const { game } = setup(mockApi(), board);
+    const rounds = Array.from({ length: GAME_CONFIG.maxBallsInPlay + 5 }, () => game.drop());
+    expect(game.ballsInPlay).toBe(GAME_CONFIG.maxBallsInPlay);
+    expect(game.canDropMore).toBe(false);
+    await flush();
+    landAll();
+    await Promise.all(rounds);
+    expect(game.history.entries).toHaveLength(GAME_CONFIG.maxBallsInPlay);
+    expect(game.canDropMore).toBe(true);
+  });
+
+  it('stays in play until the last ball lands, even if another round fails', async () => {
+    const { board, landAll } = heldBoard();
+    let calls = 0;
+    const api = mockApi();
+    const flaky: PlinkoApi = {
+      play: (request) => (++calls === 2 ? Promise.reject(new Error('network down')) : api.play(request)),
+    };
+    const { game } = setup(flaky, board);
+    const rounds = [game.drop(), game.drop()];
+    await flush();
+    expect(game.state.state).toBe(GameState.PLAYING);
+    expect(game.wallet.balance).toBe(100000 - 1000);
+
+    landAll();
+    await Promise.all(rounds);
+    expect(game.state.state).toBe(GameState.RESULT);
+    expect(game.history.entries).toHaveLength(1);
   });
 
   it('blocks bets above the balance', async () => {
@@ -153,17 +217,31 @@ describe('GameController', () => {
     expect(game.wallet.balance).toBe(100000 - 1000 + record.winCents);
   });
 
-  it('locks settings while busy and resets balance and history', async () => {
+  it('locks board settings while busy and resets balance and history', async () => {
     const { game } = setup(mockApi());
     const round = game.drop();
     game.setRows(16);
     game.setRisk('high');
+    game.reset();
     expect(game.settings.rows).toBe(GAME_CONFIG.defaultRows);
     expect(game.settings.risk).toBe(GAME_CONFIG.defaultRisk);
+    expect(game.wallet.balance).toBe(100000 - 1000);
     await round;
     game.reset();
     expect(game.wallet.balance).toBe(100000);
     expect(game.history.entries).toHaveLength(0);
     expect(game.state.state).toBe(GameState.IDLE);
+  });
+
+  it('settles each round with the bet it started with', async () => {
+    const { board, landAll } = heldBoard();
+    const { game } = setup(mockApi(), board);
+    const first = game.drop();
+    game.setBet(500);
+    const second = game.drop();
+    await flush();
+    landAll();
+    await Promise.all([first, second]);
+    expect(game.history.entries.map((record) => record.betCents).sort((a, b) => a - b)).toEqual([500, 1000]);
   });
 });

@@ -8,12 +8,10 @@ import { BoardRenderer } from '../render/BoardRenderer';
 import { createSteering, type DropPlan } from '../steering/planDrop';
 
 export interface DropOutcome {
-  /** Slot the ball physically landed in, or null if it never landed. */
   readonly slot: number | null;
   readonly timedOut: boolean;
 }
 
-/** What the game controller needs from the board. */
 export interface BoardPort {
   setBoard(rows: number, risk: RiskLevel): void;
   drop(plan: DropPlan): Promise<DropOutcome>;
@@ -23,20 +21,16 @@ export interface BoardPort {
 
 interface ActiveDrop {
   readonly world: PlinkoWorld;
+  readonly ball: number;
   readonly resolve: (outcome: DropOutcome) => void;
   accumulator: number;
 }
 
-/** Frames simulated per rendered frame at most, so a slow frame can't spiral. */
 const MAX_CATCH_UP_FRAMES = 4;
 
-/**
- * Runs the live drop: a fresh physics world per ball, stepped on a fixed
- * timestep from the render loop, with the renderer mirroring its state.
- */
 export class BoardScene implements BoardPort {
   private geometry: BoardGeometry = createBoardGeometry(8);
-  private active: ActiveDrop | null = null;
+  private readonly active = new Set<ActiveDrop>();
   private readonly resizeObserver: ResizeObserver;
 
   private constructor(
@@ -71,7 +65,7 @@ export class BoardScene implements BoardPort {
   }
 
   setBoard(rows: number, risk: RiskLevel): void {
-    if (this.active) throw new Error('Cannot change the board while a ball is in play');
+    if (this.active.size > 0) throw new Error('Cannot change the board while a ball is in play');
     if (rows !== this.geometry.rows || this.renderer.isEmpty) {
       this.geometry = createBoardGeometry(rows);
       this.renderer.setBoard(this.geometry, getMultipliers(rows, risk));
@@ -82,14 +76,14 @@ export class BoardScene implements BoardPort {
   }
 
   drop(plan: DropPlan): Promise<DropOutcome> {
-    if (this.active) return Promise.reject(new Error('A ball is already in play'));
     const world = new PlinkoWorld(this.geometry);
     world.spawnBall(plan.spawn, createSteering(this.geometry, plan));
+    const ball = this.renderer.addBall();
     const state = world.getBallState();
-    if (state) this.renderer.showBall(state);
+    if (state) this.renderer.syncBall(ball, state);
     this.sounds.play('spawn');
     return new Promise<DropOutcome>((resolve) => {
-      this.active = { world, resolve, accumulator: 0 };
+      this.active.add({ world, ball, resolve, accumulator: 0 });
     });
   }
 
@@ -102,7 +96,7 @@ export class BoardScene implements BoardPort {
   }
 
   private tick(deltaMs: number): void {
-    if (this.active) this.stepDrop(this.active, deltaMs);
+    for (const drop of this.active) this.stepDrop(drop, deltaMs);
     this.renderer.update(deltaMs);
   }
 
@@ -114,7 +108,7 @@ export class BoardScene implements BoardPort {
       for (const peg of events.pegHits) this.renderer.pegHit(peg);
       if (events.pegHits.length > 0) this.sounds.play('peg');
       const state = drop.world.getBallState();
-      if (state) this.renderer.syncBall(state);
+      if (state) this.renderer.syncBall(drop.ball, state);
 
       if (events.landedSlot !== null) {
         this.finish(drop, { slot: events.landedSlot, timedOut: false });
@@ -128,12 +122,12 @@ export class BoardScene implements BoardPort {
   }
 
   private finish(drop: ActiveDrop, outcome: DropOutcome): void {
-    this.active = null;
+    this.active.delete(drop);
     drop.world.destroy();
     if (outcome.timedOut) {
-      this.renderer.hideBall();
+      this.renderer.removeBall(drop.ball);
     } else {
-      this.renderer.sinkBall();
+      this.renderer.sinkBall(drop.ball);
       this.sounds.play('land');
     }
     drop.resolve(outcome);

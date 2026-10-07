@@ -1,7 +1,6 @@
 import type { RoundResult } from '../game/GameController';
 import { formatMoney, formatMultiplierFixed } from '../utils/money';
 
-/** Short result badge floating over the board. */
 export class WinPopup {
   private timer = 0;
 
@@ -12,7 +11,6 @@ export class WinPopup {
     const el = this.element;
     el.classList.remove('is-visible', 'is-win', 'is-big');
     el.textContent = `${formatMultiplierFixed(result.multiplier)}  ·  +${formatMoney(result.winCents)}`;
-    // Force a reflow so the CSS animation restarts.
     el.getBoundingClientRect();
     el.classList.add('is-visible');
     if (result.isBigWin) el.classList.add('is-big');

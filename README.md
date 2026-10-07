@@ -22,6 +22,8 @@ Append `?failRate=0.3` to the URL to make the mock server fail some rounds and s
 5. The live board replays that plan with a fixed timestep: the ball really falls, bounces off pegs and lands in the slot the server chose.
 6. The win is credited, the slot is highlighted and the round goes to history.
 
+Drop can be pressed again while balls are still falling: every press is its own round with its own bet, and each ball runs in its own physics world, so up to `maxBallsInPlay` (20) balls share the board. Risk, rows and reset stay locked until the last ball lands; the bet can change at any time.
+
 ## Layout
 
 | Path | Responsibility |

@@ -10,7 +10,6 @@ export const PALETTE = {
   slotText: 0x14101f,
 } as const;
 
-/** Slot colour stops from the centre (low pay) to the edges (high pay). */
 const SLOT_STOPS: readonly number[] = [0xffd84a, 0xffa53a, 0xff6a3d, 0xff3d5e];
 
 function mixColor(a: number, b: number, t: number): number {
@@ -23,7 +22,6 @@ function mixColor(a: number, b: number, t: number): number {
   return (r << 16) | (g << 8) | bl;
 }
 
-/** `distance` is 0 at the centre slot and 1 at the outermost slot. */
 export function slotColor(distance: number): number {
   const scaled = clamp(distance, 0, 1) * (SLOT_STOPS.length - 1);
   const i = Math.min(Math.floor(scaled), SLOT_STOPS.length - 2);

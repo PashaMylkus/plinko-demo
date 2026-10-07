@@ -1,4 +1,4 @@
-import { Container, Graphics, Text, type Application } from 'pixi.js';
+import { Container, Graphics, GraphicsContext, Text, type Application } from 'pixi.js';
 import type { BoardGeometry } from '../physics/geometry';
 import type { BallState } from '../physics/PlinkoWorld';
 import { formatMultiplier } from '../utils/money';
@@ -19,9 +19,15 @@ interface SlotSprite {
   readonly label: Text;
   readonly baseY: number;
   readonly color: number;
-  /** 0..1, decays after a landing. */
   bounce: number;
   highlight: number;
+}
+
+interface BallSprite {
+  readonly view: Container;
+  trailPoints: { x: number; y: number }[];
+  age: number;
+  fade: number;
 }
 
 const TRAIL_LENGTH = 9;
@@ -29,30 +35,31 @@ const BOARD_PADDING = 12;
 const IDLE_SLOT_ALPHA = 0.8;
 const RESULT_BADGE_SPACE = 44;
 
-/**
- * Draws the board (pegs, slots, ball, effects) with Pixi. It only reads
- * physics state; it never moves bodies or decides outcomes.
- */
 export class BoardRenderer {
   private readonly root = new Container();
   private readonly pegLayer = new Container();
   private readonly slotLayer = new Container();
   private readonly trail = new Graphics();
-  private readonly ball = new Container();
+  private readonly ballLayer = new Container();
+  private readonly ballGlow: GraphicsContext;
+  private readonly ballBody: GraphicsContext;
+  private readonly balls = new Map<number, BallSprite>();
+  private nextBallId = 1;
   private pegs: PegSprite[] = [];
   private slots: SlotSprite[] = [];
   private geometry: BoardGeometry | null = null;
-  private trailPoints: { x: number; y: number }[] = [];
-  private ballAge = 0;
-  private ballFade = 0;
-  private ballVisible = false;
   private viewWidth = 0;
   private viewHeight = 0;
 
   constructor(app: Application) {
-    this.drawBall();
-    this.ball.visible = false;
-    this.root.addChild(this.slotLayer, this.pegLayer, this.trail, this.ball);
+    const r = PHYSICS.ballRadius;
+    this.ballGlow = new GraphicsContext().circle(0, 0, r * 1.9).fill({ color: PALETTE.ballGlow, alpha: 0.18 });
+    this.ballBody = new GraphicsContext()
+      .circle(0, 0, r)
+      .fill({ color: PALETTE.ball })
+      .circle(-r * 0.3, -r * 0.32, r * 0.42)
+      .fill({ color: PALETTE.ballCore, alpha: 0.85 });
+    this.root.addChild(this.slotLayer, this.pegLayer, this.trail, this.ballLayer);
     app.stage.addChild(this.root);
   }
 
@@ -64,7 +71,7 @@ export class BoardRenderer {
     this.geometry = geometry;
     this.buildPegs(geometry);
     this.buildSlots(geometry, multipliers);
-    this.hideBall();
+    this.clearBalls();
     this.layout(this.viewWidth, this.viewHeight);
   }
 
@@ -73,13 +80,11 @@ export class BoardRenderer {
     this.updateTextResolution();
   }
 
-  /** Fits the board inside the canvas while preserving its aspect ratio. */
   layout(width: number, height: number): void {
     this.viewWidth = width;
     this.viewHeight = height;
     const g = this.geometry;
     if (!g || width <= 0 || height <= 0) return;
-    // Keep a band at the top free for the result badge.
     const top = Math.min(RESULT_BADGE_SPACE, height * 0.08);
     const scale = Math.min((width - BOARD_PADDING * 2) / g.width, (height - top - BOARD_PADDING) / g.height);
     this.root.scale.set(scale);
@@ -87,32 +92,38 @@ export class BoardRenderer {
     this.updateTextResolution();
   }
 
-  showBall(state: BallState): void {
-    this.ballVisible = true;
-    this.ballAge = 0;
-    this.ballFade = 0;
-    this.trailPoints = [];
-    this.ball.visible = true;
-    this.ball.alpha = 1;
-    this.syncBall(state);
+  addBall(): number {
+    const view = new Container();
+    view.addChild(new Graphics(this.ballGlow), new Graphics(this.ballBody));
+    this.ballLayer.addChild(view);
+    const id = this.nextBallId++;
+    this.balls.set(id, { view, trailPoints: [], age: 0, fade: 0 });
+    return id;
   }
 
-  syncBall(state: BallState): void {
-    this.ball.position.set(state.x, state.y);
-    this.ball.rotation = state.angle;
-    this.trailPoints.push({ x: state.x, y: state.y });
-    if (this.trailPoints.length > TRAIL_LENGTH) this.trailPoints.shift();
+  syncBall(id: number, state: BallState): void {
+    const ball = this.balls.get(id);
+    if (!ball) return;
+    ball.view.position.set(state.x, state.y);
+    ball.view.rotation = state.angle;
+    ball.trailPoints.push({ x: state.x, y: state.y });
+    if (ball.trailPoints.length > TRAIL_LENGTH) ball.trailPoints.shift();
   }
 
-  /** Ball drops into its slot and fades out. */
-  sinkBall(): void {
-    this.ballFade = 1;
+  sinkBall(id: number): void {
+    const ball = this.balls.get(id);
+    if (ball) ball.fade = 1;
   }
 
-  hideBall(): void {
-    this.ballVisible = false;
-    this.ball.visible = false;
-    this.trailPoints = [];
+  removeBall(id: number): void {
+    const ball = this.balls.get(id);
+    if (!ball) return;
+    this.balls.delete(id);
+    ball.view.destroy({ children: true });
+  }
+
+  clearBalls(): void {
+    for (const id of [...this.balls.keys()]) this.removeBall(id);
     this.trail.clear();
   }
 
@@ -132,7 +143,6 @@ export class BoardRenderer {
     for (const slot of this.slots) slot.highlight = 0;
   }
 
-  /** Per-frame cosmetic animation. */
   update(deltaMs: number): void {
     const dt = deltaMs / 1000;
     for (const peg of this.pegs) {
@@ -142,8 +152,8 @@ export class BoardRenderer {
       peg.glow.scale.set(1 + (1 - peg.energy) * 0.6);
     }
     for (const slot of this.slots) this.animateSlot(slot, dt);
-    this.animateBall(dt);
-    this.drawTrail();
+    for (const [id, ball] of this.balls) this.animateBall(id, ball, dt);
+    this.drawTrails();
   }
 
   private animateSlot(slot: SlotSprite, dt: number): void {
@@ -158,45 +168,38 @@ export class BoardRenderer {
     if (slot.highlight > 0) slot.highlight = Math.max(0, slot.highlight - dt * 0.35);
   }
 
-  private animateBall(dt: number): void {
-    if (!this.ballVisible) return;
-    this.ballAge += dt;
-    const spawn = easeOutCubic(clamp(this.ballAge / 0.22, 0, 1));
+  private animateBall(id: number, ball: BallSprite, dt: number): void {
+    ball.age += dt;
+    const spawn = easeOutCubic(clamp(ball.age / 0.22, 0, 1));
     let scale = 0.4 + 0.6 * spawn;
-    if (this.ballFade > 0) {
-      this.ballFade = Math.max(0, this.ballFade - dt * 4);
-      this.ball.alpha = this.ballFade;
-      scale *= 0.6 + 0.4 * this.ballFade;
-      if (this.ballFade === 0) this.hideBall();
+    if (ball.fade > 0) {
+      ball.fade = Math.max(0, ball.fade - dt * 4);
+      ball.view.alpha = ball.fade;
+      scale *= 0.6 + 0.4 * ball.fade;
+      if (ball.fade === 0) {
+        this.removeBall(id);
+        return;
+      }
     }
-    this.ball.scale.set(scale);
+    ball.view.scale.set(scale);
   }
 
-  private drawTrail(): void {
+  private drawTrails(): void {
     this.trail.clear();
     const g = this.geometry;
-    if (!g || !this.ballVisible) return;
-    const n = this.trailPoints.length;
-    for (let i = 0; i < n - 1; i++) {
-      const p = this.trailPoints[i];
-      if (!p) continue;
-      const t = (i + 1) / n;
-      this.trail.circle(p.x, p.y, g.ballRadius * (0.35 + 0.55 * t)).fill({
-        color: PALETTE.trail,
-        alpha: 0.18 * t * this.ball.alpha,
-      });
+    if (!g) return;
+    for (const ball of this.balls.values()) {
+      const n = ball.trailPoints.length;
+      for (let i = 0; i < n - 1; i++) {
+        const p = ball.trailPoints[i];
+        if (!p) continue;
+        const t = (i + 1) / n;
+        this.trail.circle(p.x, p.y, g.ballRadius * (0.35 + 0.55 * t)).fill({
+          color: PALETTE.trail,
+          alpha: 0.18 * t * ball.view.alpha,
+        });
+      }
     }
-  }
-
-  private drawBall(): void {
-    const r = PHYSICS.ballRadius;
-    const glow = new Graphics().circle(0, 0, r * 1.9).fill({ color: PALETTE.ballGlow, alpha: 0.18 });
-    const body = new Graphics()
-      .circle(0, 0, r)
-      .fill({ color: PALETTE.ball })
-      .circle(-r * 0.3, -r * 0.32, r * 0.42)
-      .fill({ color: PALETTE.ballCore, alpha: 0.85 });
-    this.ball.addChild(glow, body);
   }
 
   private buildPegs(geometry: BoardGeometry): void {

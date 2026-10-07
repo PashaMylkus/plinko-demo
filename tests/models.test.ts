@@ -8,15 +8,14 @@ import { validatePlayResult } from '../src/game/validatePlayResult';
 import { InsufficientFundsError, Wallet } from '../src/game/Wallet';
 
 describe('GameStateMachine', () => {
-  it('follows the round lifecycle', () => {
+  it('follows the session lifecycle', () => {
     const machine = new GameStateMachine();
     expect(machine.state).toBe(GameState.IDLE);
-    machine.transition(GameState.WAITING_FOR_RESULT);
+    machine.transition(GameState.PLAYING);
     expect(machine.isBusy).toBe(true);
-    machine.transition(GameState.BALL_DROPPING);
     machine.transition(GameState.RESULT);
     expect(machine.isBusy).toBe(false);
-    machine.transition(GameState.WAITING_FOR_RESULT);
+    machine.transition(GameState.PLAYING);
     machine.transition(GameState.ERROR);
     machine.transition(GameState.IDLE);
   });
@@ -24,7 +23,7 @@ describe('GameStateMachine', () => {
   it('rejects illegal transitions', () => {
     const machine = new GameStateMachine();
     expect(() => {
-      machine.transition(GameState.BALL_DROPPING);
+      machine.transition(GameState.ERROR);
     }).toThrow();
     expect(() => {
       machine.transition(GameState.RESULT);

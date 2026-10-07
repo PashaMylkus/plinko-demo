@@ -21,7 +21,6 @@ export function validateBet(betCents: Cents, balanceCents: Cents, config: GameCo
   return { ok: true };
 }
 
-/** Parses user input such as "10", "$10.50" or "10,5" into cents (NaN if invalid). */
 export function parseBetInput(raw: string): Cents {
   const cleaned = raw.trim().replace(/^\$/, '').replace(',', '.');
   if (!/^\d+(\.\d{0,2})?$|^\.\d{1,2}$/.test(cleaned)) return Number.NaN;

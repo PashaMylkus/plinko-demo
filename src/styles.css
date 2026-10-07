@@ -65,7 +65,6 @@ button:disabled {
   gap: 12px;
 }
 
-/* Top bar */
 .topbar {
   display: flex;
   align-items: center;
@@ -182,7 +181,6 @@ button:disabled {
   display: block;
 }
 
-/* Layout */
 .layout {
   flex: 1;
   display: grid;
@@ -241,7 +239,6 @@ button:disabled {
   height: 100%;
 }
 
-/* Fields */
 .field {
   display: flex;
   flex-direction: column;
@@ -446,7 +443,6 @@ button:disabled {
   color: var(--bad);
 }
 
-/* Win pop-up */
 .win-pop {
   position: absolute;
   left: 50%;
@@ -483,7 +479,6 @@ button:disabled {
   animation: pulse 0.9s ease-in-out 2;
 }
 
-/* History */
 .history__head {
   display: flex;
   justify-content: space-between;
@@ -594,7 +589,6 @@ button:disabled {
   }
 }
 
-/* Tablet: board on top, controls and history side by side */
 @media (max-width: 1100px) {
   .layout {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -612,7 +606,6 @@ button:disabled {
   }
 }
 
-/* Mobile: single column */
 @media (max-width: 680px) {
   .app {
     padding: 10px 10px 6px;

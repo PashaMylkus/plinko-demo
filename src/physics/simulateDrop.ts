@@ -11,11 +11,9 @@ export interface SimulationResult {
 
 export interface SimulationOptions {
   readonly maxSubsteps?: number;
-  /** Called after every frame; return true to abort the run early. */
   readonly shouldAbort?: (world: PlinkoWorld) => boolean;
 }
 
-/** Runs a complete drop headlessly, exactly as the live board would run it. */
 export function simulateDrop(
   geometry: BoardGeometry,
   spawn: SpawnOptions,

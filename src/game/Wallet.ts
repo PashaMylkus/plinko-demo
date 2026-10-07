@@ -8,7 +8,6 @@ export class InsufficientFundsError extends Error {
   }
 }
 
-/** Demo balance in integer cents. Not real money. */
 export class Wallet {
   private balanceCents: Cents;
   readonly changes = new Emitter<Cents>();

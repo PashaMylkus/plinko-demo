@@ -1,6 +1,5 @@
 export type Listener<T> = (value: T) => void;
 
-/** Minimal typed observer used by models to notify views. */
 export class Emitter<T> {
   private readonly listeners = new Set<Listener<T>>();
 

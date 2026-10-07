@@ -8,11 +8,6 @@ export const ROW_OPTIONS: readonly number[] = Array.from(
   (_, i) => MIN_ROWS + i,
 );
 
-/**
- * Payout tables keyed by risk, then by row count. Only the left half of each
- * table (edge to centre, centre included) is written down; the full table is
- * mirrored so every board is symmetric and always has `rows + 1` slots.
- */
 type HalfTables = Readonly<Record<number, readonly number[]>>;
 
 const HALF_TABLES: Readonly<Record<RiskLevel, HalfTables>> = {
@@ -76,7 +71,6 @@ export function getSlotCount(rows: number): number {
   return rows + 1;
 }
 
-/** Full, left-to-right multiplier list for a board. Length is always `rows + 1`. */
 export function getMultipliers(rows: number, risk: RiskLevel): readonly number[] {
   if (!isValidRowCount(rows)) throw new Error(`Unsupported row count: ${String(rows)}`);
   const half = HALF_TABLES[risk][rows];

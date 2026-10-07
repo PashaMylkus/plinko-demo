@@ -9,10 +9,6 @@ interface Pending {
   reject: (error: Error) => void;
 }
 
-/**
- * Computes drop plans off the main thread when Web Workers are available,
- * so rehearsing candidate paths never stutters the board animation.
- */
 export class DropPlanner {
   private worker: Worker | null = null;
   private readonly pending = new Map<number, Pending>();

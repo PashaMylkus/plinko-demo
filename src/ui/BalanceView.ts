@@ -3,7 +3,6 @@ import { easeOutCubic } from '../utils/math';
 
 const DURATION_MS = 550;
 
-/** Balance readout that counts smoothly to each new value. */
 export class BalanceView {
   private shown: Cents;
   private frame = 0;

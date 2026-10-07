@@ -13,7 +13,6 @@ export interface RoundRecord {
   readonly risk: RiskLevel;
 }
 
-/** Most recent rounds first, capped at `limit`. */
 export class History {
   private records: RoundRecord[] = [];
   readonly changes = new Emitter<readonly RoundRecord[]>();

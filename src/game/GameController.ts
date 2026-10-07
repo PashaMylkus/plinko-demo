@@ -34,7 +34,8 @@ export interface RoundResult {
 export type GameEvent =
   | { readonly type: 'settings'; readonly settings: GameSettings }
   | { readonly type: 'message'; readonly tone: 'error' | 'info'; readonly text: string }
-  | { readonly type: 'result'; readonly result: RoundResult };
+  | { readonly type: 'result'; readonly result: RoundResult }
+  | { readonly type: 'balls'; readonly inPlay: number };
 
 export interface GameControllerDeps {
   readonly api: PlinkoApi;
@@ -46,13 +47,13 @@ export interface GameControllerDeps {
 
 const API_TIMEOUT_MS = 8000;
 
-/** Orchestrates a round: validate, debit, ask the API, drop, settle. */
 export class GameController {
   readonly state = new GameStateMachine();
   readonly wallet: Wallet;
   readonly history: History;
   readonly events = new Emitter<GameEvent>();
   private current: GameSettings;
+  private inPlay = 0;
 
   constructor(private readonly deps: GameControllerDeps) {
     const { config } = deps;
@@ -69,6 +70,14 @@ export class GameController {
     return getMultipliers(this.current.rows, this.current.risk);
   }
 
+  get ballsInPlay(): number {
+    return this.inPlay;
+  }
+
+  get canDropMore(): boolean {
+    return this.inPlay < this.deps.config.maxBallsInPlay;
+  }
+
   init(): void {
     this.deps.board.setBoard(this.current.rows, this.current.risk);
     this.events.emit({ type: 'settings', settings: this.current });
@@ -79,7 +88,6 @@ export class GameController {
   }
 
   setBet(betCents: Cents): void {
-    if (this.state.isBusy) return;
     this.update({ betCents });
   }
 
@@ -95,7 +103,6 @@ export class GameController {
     this.deps.board.setBoard(rows, this.current.risk);
   }
 
-  /** Restores the starting balance and clears history. */
   reset(): void {
     if (this.state.isBusy) return;
     this.wallet.reset();
@@ -106,7 +113,7 @@ export class GameController {
   }
 
   async drop(): Promise<void> {
-    if (this.state.isBusy) return;
+    if (!this.canDropMore) return;
     const validation = this.validateCurrentBet();
     if (!validation.ok) {
       this.events.emit({ type: 'message', tone: 'error', text: validation.message });
@@ -115,9 +122,9 @@ export class GameController {
 
     const { betCents, rows, risk } = this.current;
     const request: PlayRequest = { betAmount: toDollars(betCents), rows, risk };
-    this.deps.board.clearCelebration();
+    if (this.inPlay === 0) this.deps.board.clearCelebration();
     this.wallet.debit(betCents);
-    this.state.transition(GameState.WAITING_FOR_RESULT);
+    this.beginRound();
 
     let result: PlaySuccessResponse;
     let plan: DropPlan;
@@ -126,13 +133,11 @@ export class GameController {
       result = validatePlayResult(request, response);
       plan = await this.deps.planner.plan(rows, result.targetSlot, hashString(result.ballId));
     } catch (error) {
-      // The round never started, so the stake goes back to the player.
       this.wallet.credit(betCents);
       this.fail(error instanceof Error ? error.message : 'Something went wrong. Please try again.');
       return;
     }
 
-    this.state.transition(GameState.BALL_DROPPING);
     let notice: string | null = null;
     try {
       const outcome = await this.deps.board.drop(plan);
@@ -145,7 +150,6 @@ export class GameController {
       notice = 'Display error. The round was settled with the server result.';
       console.error(error);
     }
-    // The server result is authoritative for the payout in every case.
     this.settle(result, betCents);
     if (notice) this.events.emit({ type: 'message', tone: 'info', text: notice });
   }
@@ -167,7 +171,7 @@ export class GameController {
     this.deps.board.celebrate(result.targetSlot, isBigWin ? 1 : result.multiplier >= 1 ? 0.7 : 0.45);
     if (isBigWin) this.deps.sounds.play('bigWin');
     else if (result.multiplier >= 1) this.deps.sounds.play('win');
-    this.state.transition(GameState.RESULT);
+    this.endRound(GameState.RESULT);
     this.events.emit({
       type: 'result',
       result: { slot: result.targetSlot, multiplier: result.multiplier, betCents, winCents, isBigWin },
@@ -175,8 +179,20 @@ export class GameController {
   }
 
   private fail(message: string): void {
-    this.state.transition(GameState.ERROR);
+    this.endRound(GameState.ERROR);
     this.events.emit({ type: 'message', tone: 'error', text: message });
+  }
+
+  private beginRound(): void {
+    this.inPlay++;
+    if (!this.state.isBusy) this.state.transition(GameState.PLAYING);
+    this.events.emit({ type: 'balls', inPlay: this.inPlay });
+  }
+
+  private endRound(outcome: typeof GameState.RESULT | typeof GameState.ERROR): void {
+    this.inPlay--;
+    if (this.inPlay === 0) this.state.transition(outcome);
+    this.events.emit({ type: 'balls', inPlay: this.inPlay });
   }
 
   private update(patch: Partial<GameSettings>): void {

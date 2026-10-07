@@ -32,10 +32,6 @@ export interface PlayErrorResponse {
 
 export type PlayResponse = PlaySuccessResponse | PlayErrorResponse;
 
-/**
- * Contract between the game and its backend. The mock implements it today;
- * a real HTTP client can implement it later without touching game logic.
- */
 export interface PlinkoApi {
   play(request: PlayRequest): Promise<PlayResponse>;
 }

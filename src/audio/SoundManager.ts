@@ -18,11 +18,6 @@ interface Tone {
 const MUTE_KEY = 'plinko.muted';
 const PEG_MIN_INTERVAL_MS = 35;
 
-/**
- * Tiny synthesised sound effects via the Web Audio API, so the game needs no
- * audio assets. Swap the tone recipes for samples later without touching
- * callers. Fails silently where audio is unavailable.
- */
 export class SoundManager implements SoundPlayer {
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -42,12 +37,9 @@ export class SoundManager implements SoundPlayer {
     this.isMuted = muted;
     try {
       localStorage.setItem(MUTE_KEY, muted ? '1' : '0');
-    } catch {
-      // Storage unavailable (private mode); the setting just won't persist.
-    }
+    } catch {}
   }
 
-  /** Must be called from a user gesture so browsers allow audio. */
   unlock(): void {
     const context = this.ensureContext();
     if (context?.state === 'suspended') void context.resume();

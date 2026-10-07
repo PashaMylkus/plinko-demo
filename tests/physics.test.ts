@@ -12,7 +12,6 @@ describe('board geometry', () => {
       const g = createBoardGeometry(rows);
       expect(g.slots).toHaveLength(rows + 1);
       expect(g.pegs).toHaveLength((rows * (rows + 5)) / 2);
-      // Gaps between pegs are wide enough for the ball, so it can't wedge.
       expect(g.pegSpacing - 2 * g.pegRadius).toBeGreaterThan(2 * g.ballRadius * 1.2);
     });
   }
@@ -32,7 +31,6 @@ describe('free physics', () => {
         const ball = world.getBallState();
         if (!ball) break;
         for (const peg of g.pegs) {
-          // Allow a little solver overlap, but never a pass-through.
           expect(Math.hypot(ball.x - peg.x, ball.y - peg.y)).toBeGreaterThan(minGap * 0.6);
         }
       }
@@ -53,10 +51,6 @@ describe('free physics', () => {
   });
 });
 
-/**
- * The core guarantee: for every board and every slot, the plan rehearsed by
- * the planner, replayed in a fresh live world, lands in the target slot.
- */
 describe('target steering', () => {
   for (const rows of ROW_OPTIONS) {
     it(`lands every slot on a ${rows}-row board`, () => {

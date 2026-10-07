@@ -23,7 +23,6 @@ export interface WallLayout {
   readonly to: Point;
 }
 
-/** Pure description of a board in world units. Shared by physics and rendering. */
 export interface BoardGeometry {
   readonly rows: number;
   readonly width: number;
@@ -36,10 +35,8 @@ export interface BoardGeometry {
   readonly spawn: Point;
   readonly firstRowY: number;
   readonly lastRowY: number;
-  /** Top of the slot boxes. */
   readonly slotTop: number;
   readonly slotHeight: number;
-  /** A ball whose centre crosses this line has landed. */
   readonly sensorY: number;
   readonly floorY: number;
   readonly pegs: readonly PegLayout[];
@@ -71,8 +68,6 @@ export function createBoardGeometry(rows: number): BoardGeometry {
     slots.push({ index: k, centerX: slotCenter, left: slotCenter - s / 2, right: slotCenter + s / 2 });
   }
 
-  // Side rails run parallel to the outer pegs, closer than a ball diameter,
-  // so the ball can never slip around the outside of the triangle.
   const railOffset = PHYSICS.pegRadius + PHYSICS.ballRadius;
   const topY = firstRowY - s * 1.4;
   const outerAt = (y: number): number => ((y - firstRowY) / rowSpacing + 2) * (s / 2) + railOffset;
@@ -109,7 +104,6 @@ export function createBoardGeometry(rows: number): BoardGeometry {
   };
 }
 
-/** Slot whose column contains `x` (clamped to the board). */
 export function slotIndexAt(geometry: BoardGeometry, x: number): number {
   const raw = Math.floor((x - (geometry.slots[0]?.left ?? 0)) / geometry.pegSpacing);
   return Math.min(geometry.slots.length - 1, Math.max(0, raw));

@@ -5,10 +5,8 @@ import type { RandomFn } from '../utils/rng';
 import type { PlayErrorCode, PlayErrorResponse, PlayRequest, PlayResponse, PlinkoApi } from './types';
 
 export interface MockPlinkoApiOptions {
-  /** Inclusive latency range in milliseconds. */
   readonly minLatencyMs?: number;
   readonly maxLatencyMs?: number;
-  /** Probability (0..1) that a call fails with a simulated server error. */
   readonly failureRate?: number;
   readonly random?: RandomFn;
   readonly sleep?: (ms: number) => Promise<void>;
@@ -20,11 +18,6 @@ const defaultSleep = (ms: number): Promise<void> =>
     setTimeout(resolve, ms);
   });
 
-/**
- * In-memory stand-in for a Plinko game server. It validates the request,
- * simulates network latency and picks the outcome slot itself, exactly as a
- * real backend would. No network requests are made.
- */
 export class MockPlinkoApi implements PlinkoApi {
   private readonly minLatencyMs: number;
   private readonly maxLatencyMs: number;
@@ -75,10 +68,6 @@ export class MockPlinkoApi implements PlinkoApi {
     };
   }
 
-  /**
-   * A fair board is a sequence of left/right coin flips, so the slot follows a
-   * binomial distribution: centre slots are common, edge slots are rare.
-   */
   private pickSlot(rows: number): number {
     let slot = 0;
     for (let i = 0; i < rows; i++) {
@@ -120,5 +109,4 @@ export class MockPlinkoApi implements PlinkoApi {
   }
 }
 
-/** Shared instance used by the app. */
 export const mockPlinkoApi: PlinkoApi = new MockPlinkoApi();

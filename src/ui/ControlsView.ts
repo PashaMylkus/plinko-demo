@@ -7,7 +7,6 @@ import { byId } from './dom';
 
 const RISK_LABELS: Readonly<Record<RiskLevel, string>> = { low: 'Low', medium: 'Medium', high: 'High' };
 
-/** Bet, risk, rows and drop controls. Reads and writes through the controller. */
 export class ControlsView {
   private readonly betInput = byId('bet-input', HTMLInputElement);
   private readonly betBox: HTMLElement;
@@ -87,7 +86,7 @@ export class ControlsView {
       void game.drop();
     });
 
-    this.lockable = [this.betInput, this.rowsInput, ...Object.values(buttons), ...this.riskButtons.values()];
+    this.lockable = [this.rowsInput, ...this.riskButtons.values()];
   }
 
   render(settings: GameSettings): void {
@@ -100,21 +99,20 @@ export class ControlsView {
     this.refresh();
   }
 
-  /** Re-evaluates enabled states and bet validity. */
   refresh(): void {
     const busy = this.game.state.isBusy;
     for (const control of this.lockable) control.disabled = busy;
     const validation = this.game.validateCurrentBet();
     this.betBox.classList.toggle('is-invalid', !validation.ok);
-    this.dropButton.disabled = busy || !validation.ok;
+    this.dropButton.disabled = !validation.ok || !this.game.canDropMore;
     this.dropButton.classList.toggle('is-busy', busy);
     this.dropButton.setAttribute('aria-busy', String(busy));
-    if (!busy && !validation.ok) {
-      const hint =
-        validation.problem === 'INSUFFICIENT_FUNDS' && this.game.wallet.balance < toCents(this.config.minBet)
-          ? 'Out of demo funds. Use reset to top up.'
-          : validation.message;
-      this.showMessage(hint, 'error', false);
+    if (!validation.ok) {
+      const outOfFunds =
+        !busy &&
+        validation.problem === 'INSUFFICIENT_FUNDS' &&
+        this.game.wallet.balance < toCents(this.config.minBet);
+      this.showMessage(outOfFunds ? 'Out of demo funds. Use reset to top up.' : validation.message, 'error', false);
     } else if (this.message.dataset.sticky === 'validation') {
       this.showMessage('', 'info', false);
     }
@@ -151,7 +149,6 @@ export class ControlsView {
     return [...ladder].reverse().find((step) => step < bet) ?? bet;
   }
 
-  /** Writes the canonical bet into the input unless the user is mid-edit. */
   private syncBetInput(force: boolean): void {
     if (!force && document.activeElement === this.betInput) return;
     const bet = this.game.settings.betCents;

@@ -2,19 +2,17 @@ import { Emitter } from '../utils/Emitter';
 
 export const GameState = {
   IDLE: 'IDLE',
-  WAITING_FOR_RESULT: 'WAITING_FOR_RESULT',
-  BALL_DROPPING: 'BALL_DROPPING',
+  PLAYING: 'PLAYING',
   RESULT: 'RESULT',
   ERROR: 'ERROR',
 } as const;
 export type GameState = (typeof GameState)[keyof typeof GameState];
 
 const TRANSITIONS: Readonly<Record<GameState, readonly GameState[]>> = {
-  IDLE: ['WAITING_FOR_RESULT'],
-  WAITING_FOR_RESULT: ['BALL_DROPPING', 'ERROR'],
-  BALL_DROPPING: ['RESULT', 'ERROR'],
-  RESULT: ['WAITING_FOR_RESULT', 'IDLE'],
-  ERROR: ['WAITING_FOR_RESULT', 'IDLE'],
+  IDLE: ['PLAYING'],
+  PLAYING: ['RESULT', 'ERROR'],
+  RESULT: ['PLAYING', 'IDLE'],
+  ERROR: ['PLAYING', 'IDLE'],
 };
 
 export interface StateChange {
@@ -22,7 +20,6 @@ export interface StateChange {
   readonly to: GameState;
 }
 
-/** Explicit round lifecycle. Illegal transitions are programming errors. */
 export class GameStateMachine {
   private current: GameState = GameState.IDLE;
   readonly changes = new Emitter<StateChange>();
@@ -31,9 +28,8 @@ export class GameStateMachine {
     return this.current;
   }
 
-  /** A new round may start, and settings may change, only when no ball is in play. */
   get isBusy(): boolean {
-    return this.current === GameState.WAITING_FOR_RESULT || this.current === GameState.BALL_DROPPING;
+    return this.current === GameState.PLAYING;
   }
 
   canTransition(to: GameState): boolean {
